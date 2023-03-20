@@ -1010,6 +1010,7 @@ void ccci_modem_plt_resume(void)
 		ccci_modem_restore_reg(md);
 }
 
+
 /* notify atf set scp smem addr to scp reg */
 void ccci_notify_set_scpmem(void)
 {

@@ -69,12 +69,13 @@ void mmc_retune_enable(struct mmc_host *host)
 
 /*
  * Pause re-tuning for a small set of operations.  The pause begins after the
- * next command.
+ * next command and after first doing re-tuning.
  */
 void mmc_retune_pause(struct mmc_host *host)
 {
 	if (!host->retune_paused) {
 		host->retune_paused = 1;
+		mmc_retune_needed(host);
 		mmc_retune_hold(host);
 	}
 }
@@ -149,7 +150,7 @@ int mmc_retune(struct mmc_host *host)
 	if (err){
 		err = mmc_hs400_to_hs200(host->card);
 		host->caps2 &= ~(MMC_CAP2_HS400);
-		dev_info(host->parent,"disable hs400\n");
+		dev_info(host->parent,"disable hs400, %d\n", err);
 		return_to_hs400 = false;
 		if (err)
 			goto out;
@@ -236,6 +237,7 @@ int mmc_of_parse(struct mmc_host *host)
 		if (device_property_read_u32(dev, "cd-debounce-delay-ms",
 					     &cd_debounce_delay_ms))
 			cd_debounce_delay_ms = 200;
+		cd_debounce_delay_ms = 0;
 
 		if (device_property_read_bool(dev, "broken-cd"))
 			host->caps |= MMC_CAP_NEEDS_POLL;
@@ -387,6 +389,10 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 
 	dev_set_name(&host->class_dev, "mmc%d", host->index);
 
+#ifdef OPLUS_FEATURE_MMC_DRIVER
+	host->card_stuck_in_programing_status = 0;
+#endif
+
 	host->parent = dev;
 	host->class_dev.parent = dev;
 	host->class_dev.class = &mmc_host_class;
@@ -441,16 +447,6 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 
 EXPORT_SYMBOL(mmc_alloc_host);
 
-static int mmc_validate_host_caps(struct mmc_host *host)
-{
-	if (host->caps & MMC_CAP_SDIO_IRQ && !host->ops->enable_sdio_irq) {
-		dev_warn(host->parent, "missing ->enable_sdio_irq() ops\n");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 /**
  *	mmc_add_host - initialise host hardware
  *	@host: mmc host
@@ -463,9 +459,8 @@ int mmc_add_host(struct mmc_host *host)
 {
 	int err;
 
-	err = mmc_validate_host_caps(host);
-	if (err)
-		return err;
+	WARN_ON((host->caps & MMC_CAP_SDIO_IRQ) &&
+		!host->ops->enable_sdio_irq);
 
 	err = device_add(&host->class_dev);
 	if (err)
@@ -519,7 +514,6 @@ EXPORT_SYMBOL(mmc_remove_host);
  */
 void mmc_free_host(struct mmc_host *host)
 {
-	cancel_delayed_work_sync(&host->detect);
 	mmc_crypto_free_host(host);
 	mmc_pwrseq_free(host);
 	put_device(&host->class_dev);

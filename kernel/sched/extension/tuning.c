@@ -46,10 +46,17 @@ EXPORT_SYMBOL(set_sched_rotation_enable);
 enum {
 	SCHED_NO_BOOST = 0,
 	SCHED_ALL_BOOST,
+#ifdef CONFIG_OPLUS_FG_BOOST
+	SCHED_FG_BOOST,
+#endif /* CONFIG_OPLUS_FG_BOOST */
 };
 
 /*global variable for recording customer's setting type*/
+#ifdef CONFIG_OPLUS_FG_BOOST
+/*static*/ int sched_boost_type = SCHED_NO_BOOST;
+#else
 static int sched_boost_type = SCHED_NO_BOOST;
+#endif /* CONFIG_OPLUS_FG_BOOST */
 
 int get_task_group_path(struct task_group *tg, char *buf, size_t buf_len)
 {
@@ -63,11 +70,19 @@ int get_task_group_path(struct task_group *tg, char *buf, size_t buf_len)
  */
 int set_sched_boost_type(int type)
 {
-	if (type < SCHED_NO_BOOST || type > SCHED_ALL_BOOST) {
+#ifdef CONFIG_OPLUS_FG_BOOST
+	if (type < SCHED_NO_BOOST || type > SCHED_FG_BOOST) {
 		pr_info("Sched boost type should between %d-%d but your valuse is %d\n",
-		       SCHED_NO_BOOST, SCHED_ALL_BOOST, type);
+			SCHED_NO_BOOST, SCHED_FG_BOOST, type);
 		return -1;
 	}
+#else
+	if (type < SCHED_NO_BOOST || type > SCHED_ALL_BOOST) {
+	pr_info("Sched boost type should between %d-%d but your valuse is %d\n",
+			SCHED_NO_BOOST, SCHED_ALL_BOOST, type);
+		return -1;
+	}
+#endif /* CONFIG_OPLUS_FG_BOOST */
 
 	sched_boost_type = type;
 
@@ -98,19 +113,12 @@ int cpu_prefer(struct task_struct *task)
 	int cpu_prefer = task_orig_cpu_prefer(task);
 	int cs_prefer = task_cs_cpu_perfer(task);
 
-	/*
-	 * If the individual task does not have a set
-	 * cpu prefer then use the cpusets prefer instead.
-	 */
-	if (!valid_cpu_prefer(cpu_prefer))
-		cpu_prefer = cs_prefer;
-
-	/*
-	 * If the task is boosted, let the scheduler
-	 * choose the appropriate CPU for the task.
-	 */
-	if (uclamp_boosted(task))
+	if (cpu_prefer == SCHED_PREFER_LITTLE &&
+		uclamp_boosted(task))
 		cpu_prefer = SCHED_PREFER_NONE;
+
+	if (cs_prefer > SCHED_PREFER_NONE && cs_prefer < SCHED_PREFER_END)
+		cpu_prefer = cs_prefer;
 
 	switch (sched_boost_type) {
 	case SCHED_ALL_BOOST:
@@ -141,7 +149,13 @@ EXPORT_SYMBOL(get_sched_boost_type);
 /*check task's boost type*/
 inline int cpu_prefer(struct task_struct *task)
 {
-	return uclamp_boosted(task) ? SCHED_PREFER_NONE : task->cpu_prefer;
+	int cpu_prefer = task->cpu_prefer;
+
+	if (cpu_prefer == SCHED_PREFER_LITTLE &&
+		uclamp_boosted(task))
+		cpu_prefer = SCHED_PREFER_NONE;
+	}
+	return cpu_prefer;
 }
 #else
 /*check task's boost type*/

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2017-2018 HUAWEI, Inc.
- *             https://www.huawei.com/
+ * Copyright (C) 2017-2018 odm, Inc.
+ *             https://www.odm.com/
+ * Created by Gao Xiang <gaoxiang25@odm.com>
  */
 #include <linux/module.h>
 #include <linux/buffer_head.h>
@@ -103,7 +104,7 @@ static void i_callback(struct rcu_head *head)
 	kmem_cache_free(erofs_inode_cachep, vi);
 }
 
-static void erofs_destroy_inode(struct inode *inode)
+static void destroy_inode(struct inode *inode)
 {
 	call_rcu(&inode->i_rcu, i_callback);
 }
@@ -288,7 +289,6 @@ static int erofs_read_superblock(struct super_block *sb)
 			goto out;
 	}
 
-	ret = -EINVAL;
 	blkszbits = dsb->blkszbits;
 	/* 9(512 bytes) + LOG_SECTORS_PER_BLOCK == LOG_BLOCK_SIZE */
 	if (blkszbits != LOG_BLOCK_SIZE) {
@@ -571,7 +571,8 @@ static int erofs_fill_super(struct super_block *sb, void *data, int silent)
 		sb->s_flags &= ~SB_POSIXACL;
 
 #ifdef CONFIG_EROFS_FS_ZIP
-	INIT_RADIX_TREE(&sbi->workstn_tree, GFP_ATOMIC);
+	INIT_RADIX_TREE(&sbi->workstn.tree, GFP_ATOMIC);
+	spin_lock_init(&sbi->workstn.lock);
 #endif
 
 	/* get the root inode */
@@ -777,7 +778,7 @@ out:
 const struct super_operations erofs_sops = {
 	.put_super = erofs_put_super,
 	.alloc_inode = erofs_alloc_inode,
-	.destroy_inode = erofs_destroy_inode,
+	.destroy_inode = destroy_inode,
 	.statfs = erofs_statfs,
 	.show_options = erofs_show_options,
 	.remount_fs = erofs_remount,
@@ -787,5 +788,6 @@ module_init(erofs_module_init);
 module_exit(erofs_module_exit);
 
 MODULE_DESCRIPTION("Enhanced ROM File System");
-MODULE_AUTHOR("Gao Xiang, Chao Yu, Miao Xie, CONSUMER BG, HUAWEI Inc.");
+MODULE_AUTHOR("Gao Xiang, Chao Yu, Miao Xie, CONSUMER BG, odm Inc.");
 MODULE_LICENSE("GPL");
+

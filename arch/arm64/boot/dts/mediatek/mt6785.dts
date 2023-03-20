@@ -775,7 +775,7 @@ page_owner=on loop.max_part=7";
 			"syscon", "simple-mfd";
 		reg = <0 0x10007000 0 0x1000>;
 		interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_LOW>;
-		mediatek,rg_dfd_timeout = <0x1ffff>;
+		mediatek,rg_dfd_timeout = <0xa0>;
 		#reset-cells = <1>;
 		reboot-mode {
 			compatible = "syscon-reboot-mode";
@@ -4506,6 +4506,10 @@ page_owner=on loop.max_part=7";
 		compatible = "mediatek,imgsensor";
 	};
 
+	camera_af_hw_node: camera_af_hw_node {
+		compatible = "mediatek,camera_af_lens";
+	};
+
 	flashlight_core: flashlight_core {
 		compatible = "mediatek,flashlight_core";
 	};
@@ -4756,6 +4760,16 @@ page_owner=on loop.max_part=7";
 		bootmode = <&chosen>;
 		gauge_name = "gauge";
 		alias_name = "MT6359";
+		io-channels = <&pmic_auxadc AUXADC_BAT_TEMP>,
+			<&pmic_auxadc AUXADC_BATADC>,
+			<&pmic_auxadc AUXADC_VBIF>,
+			<&pmic_auxadc AUXADC_IMP>,
+			<&pmic_auxadc AUXADC_IMIX_R>;
+		io-channel-names = "pmic_battery_temp",
+			"pmic_battery_voltage",
+			"pmic_bif_voltage",
+			"pmic_ptim_voltage",
+			"pmic_ptim_r";
 	};
 
 	gauge_timer {
